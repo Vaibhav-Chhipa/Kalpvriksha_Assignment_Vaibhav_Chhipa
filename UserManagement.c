@@ -1,12 +1,10 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
+#include<ctype.h>
 
 #define FILENAME "users.txt"
 #define MAX_USERS 100
-
-// Global file pointer to keep file open in append mode
-FILE *userFile = NULL; 
 
 typedef struct {
     unsigned int id;
@@ -66,39 +64,63 @@ int getIntegerInput(const char *text){
     }
 }
 
-void getStringInput(const char *text, char *userName, size_t size){
-    printf("%s", text);
-    if(fgets(userName, size, stdin) != NULL){
-        // remove newline if present
-        userName[strcspn(userName, "\n")] = '\0'; 
+int getStringInput(const char *text, char *userName, size_t size){
+    while(1){
+        printf("%s", text);
+        if(fgets(userName, size, stdin) != NULL){
+            userName[strcspn(userName, "\n")] = '\0';
+            
+            // Check if empty (allow cancel)
+            if(strlen(userName) == 0) return 0;
+            
+            // Validate: only letters and spaces
+            int valid = 1;
+            for(int i = 0; userName[i] != '\0'; i++){
+                if(!isalpha(userName[i]) && userName[i] != ' '){
+                    valid = 0;
+                    break;
+                }
+            }
+            
+            if(valid) return 1;
+            printf("Invalid name! Only letters and spaces allowed. (Enter to cancel)\n");
+        }
     }
 }
 
 void createUser(){
+    FILE *file;
     User newUser;
-
-    if (currentId >= MAX_USERS) {
-        printf("User limit reached! Cannot add more users.\n");
-        return;
-    }
 
     currentId++;
     newUser.id = currentId;
 
     printf("Your Unique ID is: %u\n", newUser.id);
 
-    getStringInput("Enter Name: ", newUser.name, sizeof(newUser.name));
-
-    int age = getIntegerInput("Enter Age: ");
-    newUser.age = (unsigned short)age;
-    
-    if(!userFile){
-        printf("File not available!\n");
+    if(!getStringInput("Enter Name: ", newUser.name, sizeof(newUser.name))){
+        printf("Operation cancelled.\n");
+        currentId--;
         return;
     }
-    fprintf(userFile, "%u,%s,%hu\n", newUser.id, newUser.name, newUser.age);
-    //ensure data is written immediately
-    fflush(userFile);
+
+    int age = getIntegerInput("Enter Age: ");
+    if(age == -1){
+        printf("Operation cancelled.\n");
+        currentId--;
+        return;
+    }
+    newUser.age = (unsigned short)age;
+    
+    // Open file once in append mode
+    file = fopen(FILENAME, "a");
+    if(!file){
+        printf("Error in opening File\n");
+        currentId--;
+        return;
+    }
+
+    fprintf(file, "%u,%s,%hu\n", newUser.id, newUser.name, newUser.age);
+    fclose(file);
 
     printf("User Added\n");
 }
@@ -130,14 +152,23 @@ void updateUser(){
 
     int id = getIntegerInput("Enter the user ID to update: ");
     if(id == -1){
-        printf("Return to menu\n");
+        printf("Operation cancelled.\n");
         return;
     }
+    
     int check = 0;
     for(int i = 0; i < userCount; i++){
         if(users[i].id == (unsigned int)id){
-            getStringInput("Enter new Name: ", users[i].name, sizeof(users[i].name));
+            if(!getStringInput("Enter new Name: ", users[i].name, sizeof(users[i].name))){
+                printf("Operation cancelled.\n");
+                return;
+            }
+            
             int age = getIntegerInput("Enter new Age: ");
+            if(age == -1){
+                printf("Operation cancelled.\n");
+                return;
+            }
             users[i].age = (unsigned short)age;
             check = 1;
             printf("User updated!\n");
@@ -165,7 +196,7 @@ void deleteUser(){
 
     int id = getIntegerInput("Enter ID of user want to delete: ");
     if(id == -1){
-        printf("Return to menu.\n");
+        printf("Operation cancelled.\n");
         return;
     }
 
@@ -194,12 +225,6 @@ int main(){
     int choice;
     
     initSystem();
-    
-    userFile = fopen(FILENAME, "a");
-    if(!userFile){
-        printf("Error opening file for writing.\n");
-        return 1;
-    }
 
     while(1){
         printf("\n====USER MANAGEMENT SYSTEM====\n");
@@ -210,6 +235,7 @@ int main(){
         printf("5. Exit\n");
         
         choice = getIntegerInput("Enter your choice: ");
+        if(choice == -1) continue;
 
         switch (choice)
         {
@@ -226,7 +252,6 @@ int main(){
                 deleteUser();
                 break;
             case 5:
-                if(userFile) fclose(userFile);
                 exit(0);
                 break;
             default:
