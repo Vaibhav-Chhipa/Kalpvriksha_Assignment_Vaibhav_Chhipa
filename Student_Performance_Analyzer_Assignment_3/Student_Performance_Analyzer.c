@@ -9,30 +9,29 @@
 typedef enum {
     ERROR_NONE = 0,
     ERROR_INVALID_FORMAT,
-    ERROR_INVALID_ROLL,
     ERROR_DUPLICATE_ROLL,
     ERROR_INVALID_NAME,
     ERROR_INVALID_MARKS
 } ErrorCode;
 
 typedef struct {
-    int rollNumber;
+    unsigned int rollNumber;
     char name[50];
-    unsigned short marks1, marks2, marks3;
-    int totalMarks;
+    unsigned int marks1, marks2, marks3;
+    unsigned int totalMarks;
     float averageMarks;
     char grade;
 } Student;
 
-int calculateTotal(int marks1, int marks2, int marks3){
-    int totalMarks = 0;
+unsigned int calculateTotal(unsigned int marks1,unsigned int marks2,unsigned int marks3){
+    unsigned int totalMarks = 0;
     totalMarks = marks1 + marks2 + marks3;
     return totalMarks;
 }
 
-float calculateAverage(int total){
+float calculateAverage(unsigned int total){
     float average;
-    average = (float)total / 3.0; 
+    average = (float)total / 3; 
     return average;
 }
 
@@ -70,65 +69,63 @@ void displayPerformancePattern(char grade){
         default:
             stars = 0;
             break;
-    }
-    for (int i = 0; i < stars; i++) {
+    }        
+    printf("Performance: ");
+    for (int starIndex = 0; starIndex < stars; starIndex++) {
         printf("*");
     }
 }
 
-void printStudentDetails(Student s){
-    printf("Roll: %d\n", s.rollNumber);
-    printf("Name: %s\n", s.name);
-    printf("Total: %d\n", s.totalMarks);
-    printf("Average: %.2f\n", s.averageMarks);
-    printf("Grade: %c\n", s.grade);
+void printStudentDetails(const Student *studentDetails){
+    printf("Roll: %u\n", studentDetails->rollNumber);
+    printf("Name: %s\n", studentDetails->name);
+    printf("Total: %u\n", studentDetails->totalMarks);
+    printf("Average: %.2f\n", studentDetails->averageMarks);
+    printf("Grade: %c\n", studentDetails->grade);
 }
 
-void printRollNumbersRecursively(Student students[], int current, int total){
+void printRollNumbersRecursively(const Student students[], int current, int total){
     if (current == total) {
         return;
     }
-    printf("%d ", students[current].rollNumber);
+    printf("%u ", students[current].rollNumber);
     printRollNumbersRecursively(students, current + 1, total);
 }
 
-int compareRollNumber(const void *a, const void *b) {
-    const Student *s1 = (const Student *)a;
-    const Student *s2 = (const Student *)b;
-     if (s1->rollNumber < s2->rollNumber)
+int compareRollNumber(const void *studentA, const void *studentB) {
+    const Student *firstStudent = (const Student *)studentA;
+    const Student *secondStudent  = (const Student *)studentB;
+     if (firstStudent->rollNumber < secondStudent ->rollNumber)
         return -1;
-    else if (s1->rollNumber > s2->rollNumber)
+    else if (firstStudent->rollNumber > secondStudent ->rollNumber)
         return 1;  
     else
         return 0; 
 }
 
-int isRollNumberUnique(Student students[], int count, int rollNumber){
-    for (int k = 0; k < count; k++) {
-        if (students[k].rollNumber == rollNumber) {
+int isRollNumberUnique(const Student students[], int count, int rollNumber){
+    for (int index = 0; index < count; index++) {
+        if (students[index].rollNumber == rollNumber) {
             return 0;
         }
     }
     return 1;
 }
 
-ErrorCode validateInput(Student students[], int currentIndex, int scanResult, int roll, char *name, int marks1, int marks2, int marks3){
+ErrorCode validateInput(const Student students[], int currentIndex, int scanResult, const Student * temporaryStudent){
     // Check if input format is correct
     if (scanResult != 5) {
         return ERROR_INVALID_FORMAT;
     }
-    if (roll <= 0) {
-        return ERROR_INVALID_ROLL;
-    }
-    if (!isRollNumberUnique(students, currentIndex, roll)) {
+    if (!isRollNumberUnique(students, currentIndex, temporaryStudent->rollNumber)) {
         return ERROR_DUPLICATE_ROLL;
     }
-    for (int k = 0; name[k] != '\0'; k++) {
-        if (!isalpha(name[k])) {
+    for (int index = 0; temporaryStudent->name[index] != '\0'; index++) {
+        if (!isalpha(temporaryStudent->name[index])) {
             return ERROR_INVALID_NAME;
         }
     }
-    if (marks1 < 0 || marks1 > 100 || marks2 < 0 || marks2 > 100 || marks3 < 0 || marks3 > 100) {
+    if (temporaryStudent->marks1 > 100 || temporaryStudent->marks2 > 100 || temporaryStudent->marks3 > 100) {
         return ERROR_INVALID_MARKS;
     }
     return ERROR_NONE;
@@ -138,9 +135,6 @@ void displayErrorMessage(ErrorCode errorCode){
     switch (errorCode) {
         case ERROR_INVALID_FORMAT:
             printf("Error: Invalid input format. Please re-enter student data:\n");
-            break;
-        case ERROR_INVALID_ROLL:
-            printf("Error: Roll number must be a positive integer. Please re-enter student data:\n");
             break;
         case ERROR_DUPLICATE_ROLL:
             printf("Error: Duplicate roll number found. Please re-enter student data:\n");
@@ -157,14 +151,14 @@ void displayErrorMessage(ErrorCode errorCode){
 }
 
 int main() {
-    unsigned short numberOfStudents, i;
+    unsigned short numberOfStudents, studentIndex;
     Student students[MAX_STUDENTS];
     char buffer[200];
     printf("========== Student Performance Analyzer ==========\n");
     while (1) {
         printf("Enter number of students: ");
         fgets(buffer, sizeof(buffer), stdin);
-        if (sscanf(buffer, "%d", &numberOfStudents) != 1) {
+        if (sscanf(buffer, "%hu", &numberOfStudents) != 1) {
             printf("Error: Invalid input. Please enter a valid number.\n");
             continue;
         }
@@ -172,51 +166,44 @@ int main() {
             printf("Error: Number of students must be between 1 and 100. Please re-enter.\n");
             continue;
         }
-
         break;
     }
     printf("\nEnter details for each student in the format:\n");
     
-    for (i = 0; i < numberOfStudents; i++) {
+    for (studentIndex = 0; studentIndex < numberOfStudents; studentIndex++) {
         int validInput = 0;
+        Student temporaryStudent;
         while (!validInput) {
-            printf("Student%d (RollNumber Name Marks1 Marks2 Marks3)\n", i+1);
+            printf("Student%hu (RollNumber Name Marks1 Marks2 Marks3)\n", studentIndex+1);
             fgets(buffer, sizeof(buffer), stdin);
             
-            int roll, marks1, marks2, marks3;
-            char studentName[50];
 
-            int scanResult = sscanf(buffer, "%d %s %d %d %d", &roll, studentName, &marks1, &marks2, &marks3);
+            int scanResult = sscanf(buffer, "%u %s %u %u %u", &temporaryStudent.rollNumber, temporaryStudent.name, &temporaryStudent.marks1, &temporaryStudent.marks2, &temporaryStudent.marks3);
             
             // Validate input and get error code
-            ErrorCode errorCode = validateInput(students, i, scanResult, roll, studentName, marks1, marks2, marks3);
+            ErrorCode errorCode = validateInput(students, studentIndex, scanResult, &temporaryStudent);
             
             if (errorCode != ERROR_NONE) {
                 displayErrorMessage(errorCode);
                 continue;
             }
-            students[i].rollNumber = roll;
-            strcpy(students[i].name,studentName);
-            students[i].marks1 = marks1;
-            students[i].marks2 = marks2;
-            students[i].marks3 = marks3;
-            students[i].totalMarks = calculateTotal(marks1, marks2, marks3);
-            students[i].averageMarks = calculateAverage(students[i].totalMarks);
-            students[i].grade = assignGrade(students[i].averageMarks);
+            temporaryStudent.totalMarks = calculateTotal(temporaryStudent.marks1, temporaryStudent.marks2, temporaryStudent.marks3);
+            temporaryStudent.averageMarks = calculateAverage(temporaryStudent.totalMarks);
+            temporaryStudent.grade = assignGrade(temporaryStudent.averageMarks);
+            students[studentIndex] = temporaryStudent;
             validInput = 1;
         }
     }
     
     qsort(students, numberOfStudents, sizeof(Student), compareRollNumber);
     
-    for (i = 0; i < numberOfStudents; i++) {
-        printStudentDetails(students[i]);
-        if (students[i].grade == 'F') {
+    for (studentIndex = 0; studentIndex < numberOfStudents; studentIndex++) {
+        printStudentDetails(&students[studentIndex]);
+        if (students[studentIndex].grade == 'F') {
             printf("\n");
             continue;
         }
-        printf("Performance: ");
-        displayPerformancePattern(students[i].grade);
+        displayPerformancePattern(students[studentIndex].grade);
         printf("\n\n");
     }
     printf("List of Roll Numbers (via recursion): ");
