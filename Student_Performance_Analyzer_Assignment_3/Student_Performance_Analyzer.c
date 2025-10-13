@@ -17,19 +17,19 @@ typedef enum {
 typedef struct {
     unsigned int rollNumber;
     char name[50];
-    unsigned int marks1, marks2, marks3;
-    unsigned int totalMarks;
+    unsigned short marks1, marks2, marks3;
+    unsigned short totalMarks;
     float averageMarks;
     char grade;
 } Student;
 
-unsigned int calculateTotal(unsigned int marks1,unsigned int marks2,unsigned int marks3){
-    unsigned int totalMarks = 0;
+unsigned short calculateTotal(unsigned short marks1,unsigned short marks2,unsigned short marks3){
+    unsigned short totalMarks = 0;
     totalMarks = marks1 + marks2 + marks3;
     return totalMarks;
 }
 
-float calculateAverage(unsigned int total){
+float calculateAverage(unsigned short total){
     float average;
     average = (float)total / 3; 
     return average;
@@ -79,7 +79,7 @@ void displayPerformancePattern(char grade){
 void printStudentDetails(const Student *studentDetails){
     printf("Roll: %u\n", studentDetails->rollNumber);
     printf("Name: %s\n", studentDetails->name);
-    printf("Total: %u\n", studentDetails->totalMarks);
+    printf("Total: %hu\n", studentDetails->totalMarks);
     printf("Average: %.2f\n", studentDetails->averageMarks);
     printf("Grade: %c\n", studentDetails->grade);
 }
@@ -178,7 +178,7 @@ int main() {
             fgets(buffer, sizeof(buffer), stdin);
             
 
-            int scanResult = sscanf(buffer, "%u %s %u %u %u", &temporaryStudent.rollNumber, temporaryStudent.name, &temporaryStudent.marks1, &temporaryStudent.marks2, &temporaryStudent.marks3);
+            int scanResult = sscanf(buffer, "%u %s %hu %hu %hu", &temporaryStudent.rollNumber, temporaryStudent.name, &temporaryStudent.marks1, &temporaryStudent.marks2, &temporaryStudent.marks3);
             
             // Validate input and get error code
             ErrorCode errorCode = validateInput(students, studentIndex, scanResult, &temporaryStudent);
