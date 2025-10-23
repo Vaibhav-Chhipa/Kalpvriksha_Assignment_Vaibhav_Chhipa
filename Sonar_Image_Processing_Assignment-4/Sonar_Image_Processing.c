@@ -9,6 +9,9 @@ void smoothingMatrix(unsigned short *sonarImageMatrix, unsigned short sizeOfMatr
     
     if(prevRow == NULL || currRow == NULL || smoothedRow == NULL){
         printf("Memory allocation failed!");
+        free(prevRow);
+        free(currRow);
+        free(smoothedRow);
         return;
     }
 
@@ -67,14 +70,17 @@ void smoothingMatrix(unsigned short *sonarImageMatrix, unsigned short sizeOfMatr
     free(smoothedRow);
 }
 
+void swapValues(unsigned short *val1, unsigned short *val2){
+    unsigned short temp = *val1;
+    *val1 = *val2;
+    *val2 = temp;
+}
 
 void rotateMatrix(unsigned short *sonarImageMatrix, unsigned short sizeOfMatrix){
     //Transpose
     for (unsigned short rowIndex = 0; rowIndex < sizeOfMatrix; rowIndex++) {
         for (unsigned short columnIndex = rowIndex + 1; columnIndex < sizeOfMatrix; columnIndex++) {
-            unsigned short temp = *(sonarImageMatrix + sizeOfMatrix*rowIndex + columnIndex);
-            *(sonarImageMatrix + sizeOfMatrix*rowIndex + columnIndex) = *(sonarImageMatrix + sizeOfMatrix*columnIndex + rowIndex);
-            *(sonarImageMatrix + sizeOfMatrix*columnIndex + rowIndex) = temp;
+            swapValues(sonarImageMatrix + sizeOfMatrix * rowIndex + columnIndex, sonarImageMatrix + sizeOfMatrix * columnIndex + rowIndex);
         }
     }
     
@@ -83,9 +89,7 @@ void rotateMatrix(unsigned short *sonarImageMatrix, unsigned short sizeOfMatrix)
         unsigned short startIndex = 0;
         unsigned short endIndex = sizeOfMatrix - 1;
         while (startIndex < endIndex) {
-            unsigned short tempVar = *(sonarImageMatrix + rowIndex * sizeOfMatrix + startIndex);
-            *(sonarImageMatrix + rowIndex * sizeOfMatrix + startIndex) = *(sonarImageMatrix + rowIndex * sizeOfMatrix + endIndex);
-            *(sonarImageMatrix + rowIndex * sizeOfMatrix + endIndex) = tempVar;
+            swapValues(sonarImageMatrix + rowIndex * sizeOfMatrix + startIndex, sonarImageMatrix + rowIndex * sizeOfMatrix + endIndex);
             startIndex++;
             endIndex--;
         }
@@ -141,5 +145,6 @@ int main(){
     smoothingMatrix(sonarImageMatrix, sizeOfMatrix);
     printMatrix(sonarImageMatrix, sizeOfMatrix);
     
+    free(sonarImageMatrix);
     return 0;
 }
