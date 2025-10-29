@@ -2,6 +2,7 @@
 #include<stdlib.h>
 #include<string.h>
 #include<ctype.h>
+#include<stdbool.h>
 
 #define MIN_PRODUCTS 1
 #define MAX_PRODUCTS 100
@@ -14,7 +15,7 @@
 #define MAX_QUANTITY 1000000
 
 typedef struct{
-    unsigned int productID;
+    unsigned short productID;
     char prodName[MAX_NAME_LENGTH + 1];
     float prodPrice;
     unsigned int prodQuantity;
@@ -36,7 +37,7 @@ unsigned int inputInt(const char *prompt, unsigned int min, unsigned int max){
     }
 }
 
-unsigned int idExists(Product * products, unsigned int prodCount, unsigned int inputID){
+unsigned int idExists(const Product * products, unsigned int prodCount, unsigned int inputID){
     for(int index = 0; index < prodCount; index++){
         if(products[index].productID == inputID){
             return 1;
@@ -45,10 +46,10 @@ unsigned int idExists(Product * products, unsigned int prodCount, unsigned int i
     return 0;
 }
 
-void inputString(char * prodName, int size, const char *prompt){
+void getProductName(char * prodName, const char *prompt){
     while(1){
         printf("%s", prompt);
-        if (!fgets(prodName, size, stdin)) {
+        if (!fgets(prodName, MAX_NAME_LENGTH + 1, stdin)) {
             printf("Input error. Try again.\n");
             continue;
         }
@@ -57,10 +58,6 @@ void inputString(char * prodName, int size, const char *prompt){
         }
         if (strlen(prodName) == 0) {
             printf("Name cannot be empty.\n");
-            continue;
-        }
-        if (strlen(prodName) > MAX_NAME_LENGTH+1) {
-            printf("Name too long (max %d chars).\n", MAX_NAME_LENGTH);
             continue;
         }
         break;
@@ -96,82 +93,74 @@ void addNewProduct(Product **products, unsigned int *prodCount){
     Product *newProduct = &(*products)[(*prodCount) - 1];
     printf("\nEnter new product details: ");
     while(1){
-        newProduct->productID =inputInt("\nProduct ID: ", MIN_PRODUCT_ID, MAX_PRODUCT_ID);
+        newProduct->productID = (unsigned short)inputInt("\nProduct ID: ", MIN_PRODUCT_ID, MAX_PRODUCT_ID);
         if(idExists(*products, *prodCount - 1, newProduct->productID)){
             printf("ID already exists!\n");
         } else {
             break;
         }
     }
-    inputString(newProduct->prodName, sizeof(newProduct->prodName), "Product Name: ");
+    getProductName(newProduct->prodName, "Product Name: ");
     newProduct->prodPrice = inputFloat("Enter Price : ", MIN_PRICE, MAX_PRICE);
     newProduct->prodQuantity = inputInt("Product Quantity: ", MIN_QUANTITY, MAX_QUANTITY);
     printf("Product added successfully!\n");
 }
 
-void viewAllProducts(Product *products, unsigned int prodCount){
+void viewAllProducts(const Product *products, unsigned int prodCount){
     if(prodCount == 0){
         printf("No Product exists in INVENTORY!\n");
         return;
     }
     printf("\n========= PRODUCT LIST =========\n");
     for(int index = 0; index < prodCount; index++){
-        printf("Product ID: %u | Name: %s | Price: %0.2f | Quantity: %u\n", products[index].productID, products[index].prodName, products[index].prodPrice, products[index].prodQuantity);
+        printf("Product ID: %hu | Name: %s | Price: %0.2f | Quantity: %u\n", products[index].productID, products[index].prodName, products[index].prodPrice, products[index].prodQuantity);
     }
 }
 
 void updateQuantity(Product *products, unsigned int prodCount){
-    unsigned int prodID;
-    prodID = inputInt("\nEnter Product ID to update quantity: ", MIN_PRODUCT_ID, MAX_PRODUCT_ID);
-    if(!idExists(products, prodCount, prodID)){
-        printf("ID not found!\n");
-        return;
-    };
-    unsigned int newQuantity = inputInt("Enter new Quantity: ", MIN_QUANTITY, MAX_QUANTITY);
+    unsigned short prodID;
+    prodID = (unsigned short)inputInt("\nEnter Product ID to update quantity: ", MIN_PRODUCT_ID, MAX_PRODUCT_ID);
+    
     for(int index = 0; index < prodCount; index++){
         if(prodID == products[index].productID){
+            unsigned int newQuantity = inputInt("Enter new Quantity: ", MIN_QUANTITY, MAX_QUANTITY);
             products[index].prodQuantity = newQuantity;
             printf("Quantity updated successfully!\n");
             return;
         }
     }
+    printf("ID not found!\n");
 }
 
-void searchProdByID(Product *products, unsigned int prodCount){
-    unsigned int prodID;
-    prodID = inputInt("\nEnter Product ID to search: ", MIN_PRODUCT_ID, MAX_PRODUCT_ID);
-    if(!idExists(products, prodCount, prodID)){
-        printf("ID not found!\n");
-        return;
-    };
+void searchProdByID(const Product *products, unsigned int prodCount){
+    unsigned short prodID;
+    prodID = (unsigned short)inputInt("\nEnter Product ID to search: ", MIN_PRODUCT_ID, MAX_PRODUCT_ID);
+
     for(int index = 0; index < prodCount; index++){
         if(products[index].productID == prodID){
-            printf("Product Found: \nProduct ID: %u | Name: %s | Price: %0.2f | Quantity: %u\n", products[index].productID, products[index].prodName, products[index].prodPrice, products[index].prodQuantity);
+            printf("Product Found: \nProduct ID: %hu | Name: %s | Price: %0.2f | Quantity: %u\n", products[index].productID, products[index].prodName, products[index].prodPrice, products[index].prodQuantity);
+            return;
         }
     }
+    printf("ID not found!\n");
 }
 
-void searchPrdByName(Product *products, unsigned int prodCount){
+void searchPrdByName(const Product *products, unsigned int prodCount){
     char findProdName[MAX_NAME_LENGTH+1];
-    unsigned short found = 0;
-    inputString(findProdName, sizeof(findProdName), "Enter name to search (partial allowed): ");
+    bool found = false;
+    getProductName(findProdName, "Enter name to search (partial allowed): ");
     printf("Product Found:\n");
 
-    for (int index = 0; findProdName[index]; index++) {
-        findProdName[index] = tolower((char)findProdName[index]);
-    }
-
     for(int index = 0; index < prodCount; index++){
-        char tempName[sizeof(products->prodName)];
+        char tempName[MAX_NAME_LENGTH + 1];
         strcpy(tempName, products[index].prodName);
 
-        for (int j = 0; tempName[j]; j++) {
-            tempName[j] = tolower((char)tempName[j]);
-        }
+        strlwr(tempName);
+        strlwr(findProdName);
 
         if (strstr(tempName, findProdName) != NULL) {
-            printf("Product ID: %u | Name: %s | Price: %0.2f | Quantity: %u\n", products[index].productID, products[index].prodName, products[index].prodPrice, products[index].prodQuantity);
-            found = 1;
+            printf("Product ID: %hu | Name: %s | Price: %0.2f | Quantity: %u\n", products[index].productID, products[index].prodName, products[index].prodPrice, products[index].prodQuantity);
+            found = true;
         }
     }
     if (!found) {
@@ -179,19 +168,19 @@ void searchPrdByName(Product *products, unsigned int prodCount){
     }
 }
 
-void searchProdByPriceRange(Product *products, unsigned int prodCount){
+void searchProdByPriceRange(const Product *products, unsigned int prodCount){
     float minRange = inputFloat("Enter minimum price: ", MIN_PRICE, MAX_PRICE);
     float maxRange = inputFloat("Enter maximum price: ", MIN_PRICE, MAX_PRICE);
-    unsigned short prodFound = 0;
+    bool prodFound = false;
 
     printf("Products in price range: \n");
     for(int index = 0; index < prodCount; index++){
         if(products[index].prodPrice >= minRange && products[index].prodPrice <= maxRange){
-            prodFound = 1;
-            printf("Product ID: %u | Name: %s | Price: %0.2f | Quantity: %u\n", products[index].productID, products[index].prodName, products[index].prodPrice, products[index].prodQuantity);
+            prodFound = true;
+            printf("Product ID: %hu | Name: %s | Price: %0.2f | Quantity: %u\n", products[index].productID, products[index].prodName, products[index].prodPrice, products[index].prodQuantity);
         }
     }
-    if(prodFound == 0){
+    if(!prodFound){
         printf("No product found in this price range!\n");
     }
 }
@@ -202,54 +191,66 @@ void deleteProduct(Product **products, unsigned int *prodCount) {
         return;
     }
 
-    unsigned int id = inputInt("\nEnter Product ID to delete: ", MIN_PRODUCT_ID, MAX_PRODUCT_ID);
-    unsigned short found = 0;
-
+    unsigned short id = (unsigned short)inputInt("\nEnter Product ID to delete: ", MIN_PRODUCT_ID, MAX_PRODUCT_ID);
+    bool found = false;
     for (int currIndex = 0; currIndex < *prodCount; currIndex++) {
         if ((*products)[currIndex].productID == id) {
-            found = 1;
-            for (int nextIndex = currIndex; nextIndex < *prodCount - 1; nextIndex++) {
-                (*products)[nextIndex] = (*products)[nextIndex + 1];
-            }
-            (*prodCount)--;
-            if (*prodCount == 0) {
+            found = true;
+            
+            if (*prodCount == 1) {
                 free(*products);
                 *products = NULL;
+                (*prodCount)--;
+                printf("Product deleted successfully!\n");
             } else {
-                *products = realloc(*products, (*prodCount) * sizeof(Product));
+                Product *temp = malloc((*prodCount - 1) * sizeof(Product));
+                if(temp == NULL){
+                    printf("Memory allocation failed! Product not deleted.\n");
+                    return;
+                }
+                
+                int newIndex = 0;
+                for(int index = 0; index < *prodCount; index++){
+                    if(index != currIndex){
+                        temp[newIndex++] = (*products)[index];
+                    }
+                }
+                
+                free(*products);
+                *products = temp;
+                (*prodCount)--;
+                printf("Product deleted successfully!\n");
             }
-            printf("Product deleted successfully!\n");
             break;
         }
     }
 
-    if (!found) printf("\nProduct with ID %u not found.\n", id);
+    if (!found) printf("\nProduct with ID %hu not found.\n", id);
 }
 
 int main(){
     Product *products = NULL;
-    unsigned int choice = 0;
+    unsigned short choice = 0;
     unsigned int prodCount = 0;
-    unsigned int initialCount = inputInt("Enter initial number of products: ", MIN_PRODUCTS, MAX_PRODUCTS);
+    unsigned short initialCount = (unsigned short)inputInt("Enter initial number of products: ", MIN_PRODUCTS, MAX_PRODUCTS);
 
     products = calloc(initialCount, sizeof(Product));
     if(products == NULL){
         printf("Memory allocation failed!\n");
-        free(products);
         return 1;
     }
 
     for(int index = 0; index < initialCount; index++){
         while(1){
             printf("\nEnter details for product %d:\n", index + 1);
-            products[index].productID =inputInt("Product ID: ", MIN_PRODUCT_ID, MAX_PRODUCT_ID);
+            products[index].productID = (unsigned short)inputInt("Product ID: ", MIN_PRODUCT_ID, MAX_PRODUCT_ID);
             if(idExists(products, index, products[index].productID)){
                 printf("ID already exists!\n");
             } else {
                 break;
             }
         }
-        inputString(products[index].prodName, sizeof(products[index].prodName), "Product Name: ");
+        getProductName(products[index].prodName, "Product Name: ");
         products[index].prodPrice = inputFloat("Enter Price : ", MIN_PRICE, MAX_PRICE);
         products[index].prodQuantity = inputInt("Product Quantity: ", MIN_QUANTITY, MAX_QUANTITY);
         prodCount++;
@@ -265,26 +266,38 @@ int main(){
         printf("6. Search Product by Price Range\n");
         printf("7. Delete Product\n");
         printf("8. Exit\n");
-        choice = inputInt("Enter your choice : ", 1, 8);
+        choice = (unsigned short)inputInt("Enter your choice : ", 1, 8);
 
-        if(choice == 1){
-            addNewProduct(&products, &prodCount);
-        } else if(choice == 2){
-            viewAllProducts(products, prodCount);
-        } else if(choice == 3){
-            updateQuantity(products, prodCount);
-        } else if(choice == 4){
-            searchProdByID(products, prodCount);
-        } else if(choice == 5){
-            searchPrdByName(products, prodCount);
-        } else if(choice == 6){
-            searchProdByPriceRange(products, prodCount);
-        } else if(choice == 7){
-            deleteProduct(&products, &prodCount);
-        } else{
-            free(products);
-            printf("Memory released successfully. Exiting program...");
-            break;
+        switch(choice){
+            case 1:
+                addNewProduct(&products, &prodCount);
+                break;
+            case 2:
+                viewAllProducts(products, prodCount);
+                break;
+            case 3:
+                updateQuantity(products, prodCount);
+                break;
+            case 4:
+                searchProdByID(products, prodCount);
+                break;
+            case 5:
+                searchPrdByName(products, prodCount);
+                break;
+            case 6:
+                searchProdByPriceRange(products, prodCount);
+                break;
+            case 7:
+                deleteProduct(&products, &prodCount);
+                break;
+            case 8:
+                free(products);
+                printf("Memory released successfully. Exiting program...");
+                exit(0);
+                break;
+            default:
+                printf("Enter correct choice!");
+                break;
         }
     }    
     return 0;
