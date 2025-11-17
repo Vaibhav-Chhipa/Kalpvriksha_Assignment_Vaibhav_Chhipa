@@ -7,11 +7,17 @@
 #define MAX_NAME_LENGTH 50
 #define MAX_TEAMS 10
 
+typedef enum {
+    ROLE_BATSMAN = 1,
+    ROLE_BOWLER = 2,
+    ROLE_ALLROUNDER = 3
+} PlayerRole;
+
 typedef struct PlayersList{
     unsigned short playerID;
     char playerName[MAX_NAME_LENGTH + 1];
     char teamName[MAX_NAME_LENGTH + 1];
-    char playerRole[MAX_NAME_LENGTH + 1];
+    PlayerRole playerRole;
     unsigned short totalRuns;
     float battingAverage;
     float strikeRate;
@@ -27,57 +33,16 @@ typedef struct TeamList{
     unsigned short totalPlayers;
     float averageBattingStrikeRate;
     unsigned short maxID;
-    PlayersList **batsmen;
-    int batsmenCount;
-    PlayersList **bowlers;
-    int bowlersCount;
-    PlayersList **allRounders;
-    int allRoundersCount;
+    PlayersList *batsmenHead;
+    PlayersList *bowlersHead;
+    PlayersList *allRoundersHead;
+    float totalBattingStrikeRate;
+    int battingPlayersCount;
 } TeamList;
 
 typedef struct {
     TeamList teams[MAX_TEAMS];
-    PlayersList *players; 
 } ICCSystem;
-
-typedef struct {
-    PlayersList *player;
-    int teamIndex;
-    int playerIndex;
-} HeapNode;
-
-void swap(HeapNode *a, HeapNode *b) {
-    HeapNode temp = *a;
-    *a = *b;
-    *b = temp;
-}
-
-void heapifyDown(HeapNode heap[], int size, int i) {
-    int largest = i;
-    int left = 2*i + 1;
-    int right = 2*i + 2;
-
-    if (left < size && heap[left].player->performanceIndex > heap[largest].player->performanceIndex)
-        largest = left;
-
-    if (right < size && heap[right].player->performanceIndex > heap[largest].player->performanceIndex)
-        largest = right;
-
-    if (largest != i) {
-        swap(&heap[i], &heap[largest]);
-        heapifyDown(heap, size, largest);
-    }
-}
-
-void heapifyUp(HeapNode heap[], int i) {
-    int parent = (i - 1) / 2;
-
-    while (i > 0 && heap[i].player->performanceIndex > heap[parent].player->performanceIndex){   
-        swap(&heap[i], &heap[parent]);
-        i = parent;
-        parent = (i - 1) / 2;
-    }
-}
 
 unsigned short getValidTeamID(){
     char buffer[50];
@@ -138,6 +103,37 @@ unsigned short getValidInteger(){
     }
 }
 
+const char* getRoleString(PlayerRole role) {
+    switch(role) {
+        case ROLE_BATSMAN: return "Batsman";
+        case ROLE_BOWLER: return "Bowler";
+        case ROLE_ALLROUNDER: return "All-rounder";
+        default: return "Unknown";
+    }
+}
+
+PlayerRole getRoleFromString(const char *roleStr) {
+    if (strcmp(roleStr, "Batsman") == 0) return ROLE_BATSMAN;
+    if (strcmp(roleStr, "Bowler") == 0) return ROLE_BOWLER;
+    return ROLE_ALLROUNDER;
+}
+
+PlayersList* getRoleListHead(TeamList *team, PlayerRole role) {
+    if (role == ROLE_BATSMAN) return team->batsmenHead;
+    if (role == ROLE_BOWLER) return team->bowlersHead;
+    return team->allRoundersHead;
+}
+
+PlayersList** getRoleListHeadPtr(TeamList *team, PlayerRole role) {
+    if (role == ROLE_BATSMAN) return &team->batsmenHead;
+    if (role == ROLE_BOWLER) return &team->bowlersHead;
+    return &team->allRoundersHead;
+}
+
+int isBattingRole(PlayerRole role) {
+    return (role == ROLE_BATSMAN || role == ROLE_ALLROUNDER);
+}
+
 int findTeamIndexByName(ICCSystem *ICCAnalyzer, const char *teamName) {
     for (int i = 0; i < MAX_TEAMS; i++) {
         if (strcmp(ICCAnalyzer->teams[i].teamName, teamName) == 0) return i;
@@ -157,125 +153,175 @@ int findTeamIndexByID(ICCSystem *ICCAnalyzer, unsigned short teamID){
     return -1;
 }
 
-void calculateAverageBattingSR(ICCSystem *ICCAnalyzer) {
-    for (int i = 0; i < MAX_TEAMS; ++i) {
-        TeamList *teamsWithRole = &ICCAnalyzer->teams[i];
-        float totalSR = 0.0f;
-        int count = 0;
-        for (int j = 0; j < teamsWithRole->batsmenCount; ++j) {
-            totalSR += teamsWithRole->batsmen[j]->strikeRate;
-            count++;
-        }
-        for (int j = 0; j < teamsWithRole->allRoundersCount; ++j) {
-            totalSR += teamsWithRole->allRounders[j]->strikeRate;
-            count++;
-        }
-        teamsWithRole->averageBattingStrikeRate = (count > 0) ? (totalSR / count) : 0.0f;
-    }
+void updateAverageBattingSR(TeamList *team, float newStrikeRate) {
+    team->totalBattingStrikeRate += newStrikeRate;
+    team->battingPlayersCount++;
+    
+    team->averageBattingStrikeRate = team->totalBattingStrikeRate / team->battingPlayersCount;
 }
 
 float calculatePerformanceIndex(const PlayersList *player) {
-    if (strcmp(player->playerRole, "Batsman") == 0) {
+    if (player->playerRole == ROLE_BATSMAN) {
         return (player->battingAverage * player->strikeRate) / 100.0f;
     }
-    else if (strcmp(player->playerRole, "Bowler") == 0) {
+    else if (player->playerRole == ROLE_BOWLER) {
         return (2.0f * player->wickets) + (100.0f - player->economyRate);
     }
     else { 
-        float battingPI =(player->battingAverage * player->strikeRate) / 100.0f;
+        float battingPI = (player->battingAverage * player->strikeRate) / 100.0f;
         float bowlingPI = player->wickets * 2.0f;
         return battingPI + bowlingPI;
     }
 }
 
+void insertPlayerSorted(PlayersList **head, PlayersList *newPlayer) {
+    if (*head == NULL || (*head)->performanceIndex < newPlayer->performanceIndex) {
+        newPlayer->next = *head;
+        *head = newPlayer;
+        return;
+    }
+    
+    PlayersList *current = *head;
+    while (current->next != NULL && current->next->performanceIndex >= newPlayer->performanceIndex) {
+        current = current->next;
+    }
+    
+    newPlayer->next = current->next;
+    current->next = newPlayer;
+}
+
+int countListNodes(PlayersList *head) {
+    int count = 0;
+    while (head != NULL) {
+        count++;
+        head = head->next;
+    }
+    return count;
+}
+
+void freePlayersList(PlayersList *head) {
+    while (head != NULL) {
+        PlayersList *next = head->next;
+        free(head);
+        head = next;
+    }
+}
+
+void printHeader(){
+    printf("====================================================================================================\n");
+    printf("%-5s %-20s %-15s %-8s %-8s %-8s %-8s %-8s %-8s\n", 
+           "ID", "Name", "Role", "Runs", "Avg", "SR", "Wkts", "ER", "Perf.Index");
+    printf("====================================================================================================\n");
+}
+
 void printPlayerData(PlayersList *player){
-     printf("%-5hu %-20s %-15s %-8hu %-8.2f %-8.2f %-8hu %-8.2f %-8.2f\n",
-               player->playerID, player->playerName, player->playerRole,
-               player->totalRuns, player->battingAverage, player->strikeRate,
-               player->wickets, player->economyRate, player->performanceIndex);
+    printf("%-5hu %-20s %-15s %-8hu %-8.2f %-8.2f %-8hu %-8.2f %-8.2f\n",
+           player->playerID, player->playerName, getRoleString(player->playerRole),
+           player->totalRuns, player->battingAverage, player->strikeRate,
+           player->wickets, player->economyRate, player->performanceIndex);
 }
 
-int comparePlayersByPerfDesc(const void *a, const void *b) {
-    PlayersList *p1 = *(PlayersList * const *)a;
-    PlayersList *p2 = *(PlayersList * const *)b;
-    if (p1->performanceIndex < p2->performanceIndex) return 1;
-    if (p1->performanceIndex > p2->performanceIndex) return -1;
-    return 0;
+void printRolePlayersList(PlayersList *head) {
+    while (head != NULL) {
+        printPlayerData(head);
+        head = head->next;
+    }
 }
 
-void initializePlayersData(ICCSystem *ICCAnalyzer){
-    ICCAnalyzer->players = NULL;
-    PlayersList *playersNode = NULL;
+void swapHeapElements(PlayersList *heap[], int teamIndex[], int i, int j) {
+    PlayersList *tempPlayer = heap[i];
+    heap[i] = heap[j];
+    heap[j] = tempPlayer;
     
-    for(int i = 0; i < playerCount; i++){
-        PlayersList *temp = malloc(sizeof(PlayersList));
-        if(!temp){
-            printf("Memory Allocation Failed!\n");
-            return;
-        }
-        temp->playerID = players[i].id;
-        strncpy(temp->playerName, players[i].name, MAX_NAME_LENGTH);
-        temp->playerName[MAX_NAME_LENGTH] = '\0';
-        strncpy(temp->teamName, players[i].team, MAX_NAME_LENGTH);
-        temp->teamName[MAX_NAME_LENGTH] = '\0';
-        strncpy(temp->playerRole, players[i].role, MAX_NAME_LENGTH);
-        temp->playerRole[MAX_NAME_LENGTH] = '\0';
-        temp->totalRuns = players[i].totalRuns;
-        temp->battingAverage = players[i].battingAverage;
-        temp->strikeRate = players[i].strikeRate;
-        temp->wickets = players[i].wickets;
-        temp->economyRate = players[i].economyRate;
-        temp->next = NULL;
-        temp->performanceIndex = calculatePerformanceIndex(temp);
-        
-        if(ICCAnalyzer->players == NULL){
-            ICCAnalyzer->players = temp;
-            playersNode = temp;
-        } else {
-            playersNode->next = temp;
-            playersNode = temp;
-        }
+    int tempTeam = teamIndex[i];
+    teamIndex[i] = teamIndex[j];
+    teamIndex[j] = tempTeam;
+}
 
-        int teamIndex = findTeamIndexByName(ICCAnalyzer, temp->teamName);
-        if(teamIndex == -1) continue;
+void heapifyDown(PlayersList *heap[], int teamIndex[], int size, int i) {
+    int largest = i;
+    int left = 2*i + 1;
+    int right = 2*i + 2;
 
-        TeamList *team = &ICCAnalyzer->teams[teamIndex];
+    if (left < size && heap[left]->performanceIndex > heap[largest]->performanceIndex)
+        largest = left;
 
-        team->totalPlayers++;
-        if(temp->playerID > team->maxID){
-            team->maxID = temp->playerID;
-        }
+    if (right < size && heap[right]->performanceIndex > heap[largest]->performanceIndex)
+        largest = right;
 
-        if (strcmp(temp->playerRole, "Batsman") == 0) {
-            if (team->batsmenCount < MAX_PLAYERS_PER_TEAM){
-                team->batsmen = realloc(team->batsmen, (team->batsmenCount + 1) * sizeof(PlayersList*));
-                if (!team->batsmen) continue;  
-                team->batsmen[team->batsmenCount++] = temp;
-            }
-        } else if (strcmp(temp->playerRole, "Bowler") == 0) {
-            if (team->bowlersCount < MAX_PLAYERS_PER_TEAM){
-                team->bowlers = realloc(team->bowlers, (team->bowlersCount + 1) * sizeof(PlayersList*));
-                if (!team->bowlers) continue; 
-                team->bowlers[team->bowlersCount++] = temp;
-            }
-        } else {
-            if (team->allRoundersCount < MAX_PLAYERS_PER_TEAM){
-                team->allRounders = realloc(team->allRounders, (team->allRoundersCount + 1) * sizeof(PlayersList*));
-                if (!team->allRounders) continue; 
-                team->allRounders[team->allRoundersCount++] = temp;
-            }
-        }
+    if (largest != i) {
+        swapHeapElements(heap, teamIndex, i, largest);
+        heapifyDown(heap, teamIndex, size, largest);
     }
+}
+
+void heapifyUp(PlayersList *heap[], int teamIndex[], int i) {
+    int parent = (i - 1) / 2;
+
+    while (i > 0 && heap[i]->performanceIndex > heap[parent]->performanceIndex){   
+        swapHeapElements(heap, teamIndex, i, parent);
+        i = parent;
+        parent = (i - 1) / 2;
+    }
+}
+
+PlayersList* createPlayerNode(int playerIndex) {
+    PlayersList *temp = malloc(sizeof(PlayersList));
+    if(!temp) return NULL;
     
-    for (int i = 0; i < MAX_TEAMS; i++) {
-        TeamList *teamsWithRole = &ICCAnalyzer->teams[i];
-        if (teamsWithRole->batsmenCount > 0) 
-            qsort(teamsWithRole->batsmen, teamsWithRole->batsmenCount, sizeof(PlayersList*), comparePlayersByPerfDesc);
-        if (teamsWithRole->bowlersCount > 0) 
-            qsort(teamsWithRole->bowlers, teamsWithRole->bowlersCount, sizeof(PlayersList*), comparePlayersByPerfDesc);
-        if (teamsWithRole->allRoundersCount > 0) 
-            qsort(teamsWithRole->allRounders, teamsWithRole->allRoundersCount, sizeof(PlayersList*), comparePlayersByPerfDesc);
+    temp->playerID = players[playerIndex].id;
+    strncpy(temp->playerName, players[playerIndex].name, MAX_NAME_LENGTH);
+    temp->playerName[MAX_NAME_LENGTH] = '\0';
+    strncpy(temp->teamName, players[playerIndex].team, MAX_NAME_LENGTH);
+    temp->teamName[MAX_NAME_LENGTH] = '\0';
+    temp->playerRole = getRoleFromString(players[playerIndex].role);
+    temp->totalRuns = players[playerIndex].totalRuns;
+    temp->battingAverage = players[playerIndex].battingAverage;
+    temp->strikeRate = players[playerIndex].strikeRate;
+    temp->wickets = players[playerIndex].wickets;
+    temp->economyRate = players[playerIndex].economyRate;
+    temp->next = NULL;
+    temp->performanceIndex = calculatePerformanceIndex(temp);
+    
+    return temp;
+}
+
+void addPlayerToTeam(TeamList *team, PlayersList *player) {
+    team->totalPlayers++;
+    if(player->playerID > team->maxID){
+        team->maxID = player->playerID;
     }
+
+    PlayersList **roleHead = getRoleListHeadPtr(team, player->playerRole);
+    insertPlayerSorted(roleHead, player);
+    
+    if (isBattingRole(player->playerRole)) {
+        updateAverageBattingSR(team, player->strikeRate);
+    }
+}
+
+void inputPlayerName(char *name) {
+    printf("Name: ");
+    if (fgets(name, MAX_NAME_LENGTH + 1, stdin)) {
+        name[strcspn(name, "\n")] = '\0';
+    }
+}
+
+void inputPlayerStats(PlayersList *player) {
+    printf("Total Runs: ");
+    player->totalRuns = getValidInteger();
+
+    printf("Batting Average: ");
+    player->battingAverage = getValidFloat();
+
+    printf("Strike Rate: ");
+    player->strikeRate = getValidFloat();
+
+    printf("Wickets: ");
+    player->wickets = getValidInteger();
+
+    printf("Economy Rate: ");
+    player->economyRate = getValidFloat();
 }
 
 void initializeTeamsData(ICCSystem *ICCAnalyzer){
@@ -287,27 +333,35 @@ void initializeTeamsData(ICCSystem *ICCAnalyzer){
         temp->totalPlayers = 0;
         temp->averageBattingStrikeRate = 0.0f;
         temp->maxID = 0;
-        temp->batsmen = NULL;
-        temp->bowlers = NULL;
-        temp->allRounders = NULL;
-        temp->batsmenCount = 0;
-        temp->bowlersCount = 0;
-        temp->allRoundersCount = 0;
+        temp->batsmenHead = NULL;
+        temp->bowlersHead = NULL;
+        temp->allRoundersHead = NULL;
+        temp->totalBattingStrikeRate = 0.0f;
+        temp->battingPlayersCount = 0;
     }
 }
 
-void printHeader(){
-    printf("====================================================================================================\n");
-    printf("%-5s %-20s %-15s %-8s %-8s %-8s %-8s %-8s %-8s\n", 
-           "ID", "Name", "Role", "Runs", "Avg", "SR", "Wkts", "ER", "Perf.Index");
-    printf("====================================================================================================\n");
+void initializePlayersData(ICCSystem *ICCAnalyzer){
+    for(int i = 0; i < playerCount; i++){
+        PlayersList *temp = createPlayerNode(i);
+        if(!temp){
+            printf("Memory Allocation Failed!\n");
+            return;
+        }
+
+        int teamIndex = findTeamIndexByName(ICCAnalyzer, temp->teamName);
+        if(teamIndex == -1) {
+            free(temp);
+            continue;
+        }
+
+        addPlayerToTeam(&ICCAnalyzer->teams[teamIndex], temp);
+    }
 }
 
 void displayPlayers(ICCSystem *ICCAnalyzer){
-    unsigned short teamID = 0;
-
     printf("\nEnter Team ID: ");
-    teamID = getValidTeamID();
+    unsigned short teamID = getValidTeamID();
     if(teamID == 0){
         printf("Enter correct TeamID!\n");
         return;
@@ -319,36 +373,23 @@ void displayPlayers(ICCSystem *ICCAnalyzer){
         return;
     }
 
-    TeamList *temp = &ICCAnalyzer->teams[teamIndex];
+    TeamList *team = &ICCAnalyzer->teams[teamIndex];
 
-    printf("\nPlayers of Team %s:\n", temp->teamName);
+    printf("\nPlayers of Team %s:\n", team->teamName);
     printHeader();
 
-    for (int i = 0; i < temp->batsmenCount; i++) {
-        PlayersList *p = temp->batsmen[i];
-        printPlayerData(p);
-    }
-
-    for (int i = 0; i < temp->bowlersCount; i++) {
-        PlayersList *p = temp->bowlers[i];
-        printPlayerData(p);
-    }
-
-    for (int i = 0; i < temp->allRoundersCount; i++) {
-        PlayersList *p = temp->allRounders[i];
-        printPlayerData(p);
-    }
+    printRolePlayersList(team->batsmenHead);
+    printRolePlayersList(team->bowlersHead);
+    printRolePlayersList(team->allRoundersHead);
 
     printf("====================================================================================================\n");
-    printf("Total Players: %hu\n", temp->totalPlayers);
-    printf("Average Batting Strike Rate: %.2f\n\n", temp->averageBattingStrikeRate);
+    printf("Total Players: %hu\n", team->totalPlayers);
+    printf("Average Batting Strike Rate: %.2f\n\n", team->averageBattingStrikeRate);
 }
 
 void addNewPlayer(ICCSystem *ICCAnalyzer){
-    unsigned short teamID = 0; 
-     
     printf("\nEnter Team ID to add player: ");
-    teamID = getValidTeamID();
+    unsigned short teamID = getValidTeamID();
     if(teamID == 0){
         printf("Enter correct TeamID!\n");
         return;
@@ -380,12 +421,7 @@ void addNewPlayer(ICCSystem *ICCAnalyzer){
     teamPtr->maxID = newPlayer->playerID;
     printf("Player ID: %hu\n", newPlayer->playerID);
 
-    printf("Name: ");
-    if (!fgets(newPlayer->playerName, MAX_NAME_LENGTH + 1, stdin)) {
-        free(newPlayer);
-        return;
-    }
-    newPlayer->playerName[strcspn(newPlayer->playerName, "\n")] = '\0';
+    inputPlayerName(newPlayer->playerName);
 
     unsigned short role = getValidPlayerRole();
     if(role == 0){
@@ -393,81 +429,22 @@ void addNewPlayer(ICCSystem *ICCAnalyzer){
         free(newPlayer);
         return;
     }
-    if(role == 1){
-        strcpy(newPlayer->playerRole, "Batsman");
-    } else if(role == 2){
-        strcpy(newPlayer->playerRole, "Bowler");
-    } else {
-        strcpy(newPlayer->playerRole, "All-rounder");
-    }
+    newPlayer->playerRole = (PlayerRole)role;
 
     strcpy(newPlayer->teamName, teamPtr->teamName);
 
-    printf("Total Runs: ");
-    newPlayer->totalRuns = getValidInteger();
-
-    printf("Batting Average: ");
-    newPlayer->battingAverage = getValidFloat();
-
-    printf("Strike Rate: ");
-    newPlayer->strikeRate = getValidFloat();
-
-    printf("Wickets: ");
-    newPlayer->wickets = getValidInteger();
-
-    printf("Economy Rate: ");
-    newPlayer->economyRate = getValidFloat();
+    inputPlayerStats(newPlayer);
 
     newPlayer->performanceIndex = calculatePerformanceIndex(newPlayer);
 
+    PlayersList **roleHead = getRoleListHeadPtr(teamPtr, newPlayer->playerRole);
+    insertPlayerSorted(roleHead, newPlayer);
     teamPtr->totalPlayers++;
-
-    PlayersList ***roleArrayPtr = NULL;
-    int *count = NULL;
     
-    if (strcmp(newPlayer->playerRole, "Batsman") == 0) { 
-        roleArrayPtr = &teamPtr->batsmen; 
-        count = &teamPtr->batsmenCount;
-    } else if (strcmp(newPlayer->playerRole, "Bowler") == 0) { 
-        roleArrayPtr = &teamPtr->bowlers; 
-        count = &teamPtr->bowlersCount; 
-    } else { 
-        roleArrayPtr = &teamPtr->allRounders; 
-        count = &teamPtr->allRoundersCount; 
+    if (isBattingRole(newPlayer->playerRole)) {
+        updateAverageBattingSR(teamPtr, newPlayer->strikeRate);
     }
 
-    PlayersList **tempArray = realloc(*roleArrayPtr, (*count + 1) * sizeof(PlayersList*));
-    if (!tempArray) {
-        printf("Memory allocation failed! Player not added.\n");
-        teamPtr->totalPlayers--;
-        free(newPlayer);
-        return;
-    }
-    *roleArrayPtr = tempArray;
-    
-    (*roleArrayPtr)[*count] = newPlayer;
-    (*count)++;
-
-    // Insertion sort to keep descending order
-    for (int i = (*count) - 1; i > 0; i--) {
-        if ((*roleArrayPtr)[i]->performanceIndex > (*roleArrayPtr)[i-1]->performanceIndex) {
-            PlayersList *tempSwap = (*roleArrayPtr)[i-1]; 
-            (*roleArrayPtr)[i-1] = (*roleArrayPtr)[i]; 
-            (*roleArrayPtr)[i] = tempSwap;
-        } else break;
-    }
-
-    // Add to main linked list
-    if (ICCAnalyzer->players == NULL){
-        ICCAnalyzer->players = newPlayer;
-    } else {
-        PlayersList *curr = ICCAnalyzer->players;
-        while (curr->next != NULL)
-            curr = curr->next;
-        curr->next = newPlayer;
-    }
-
-    calculateAverageBattingSR(ICCAnalyzer);
     printf("Player added successfully to Team %s with ID %hu!\n", teamPtr->teamName, newPlayer->playerID);
 }
 
@@ -496,7 +473,7 @@ void displayAverageBattingSR(ICCSystem *ICCAnalyzer){
     
     for(int i = 0; i < MAX_TEAMS; i++){
         TeamList *data = teamList[i];
-        printf("%-5hu %-20s %-12.1f %-15hu\n", 
+        printf("%-5hu %-20s %-12.2f %-15hu\n", 
                data->teamID, data->teamName, 
                data->averageBattingStrikeRate, data->totalPlayers);
     }
@@ -504,10 +481,8 @@ void displayAverageBattingSR(ICCSystem *ICCAnalyzer){
 }
 
 void displayTopKPlayers(ICCSystem *ICCAnalyzer){
-    unsigned short teamID = 0;
-
     printf("\nEnter Team ID: ");
-    teamID = getValidTeamID();
+    unsigned short teamID = getValidTeamID();
     if(teamID == 0){
         printf("Enter correct TeamID!\n");
         return;
@@ -530,26 +505,9 @@ void displayTopKPlayers(ICCSystem *ICCAnalyzer){
     printf("Enter Number of players: ");
     unsigned short K = getValidInteger();
 
-    PlayersList **rolePlayersList = NULL;
-    int count = 0;
-    char *roleName = "";
-    
-    if(role == 1) {
-        rolePlayersList = team->batsmen;
-        count = team->batsmenCount;
-        roleName = "Batsmen";
-    } else if(role == 2) {
-        rolePlayersList = team->bowlers;
-        count = team->bowlersCount;
-        roleName = "Bowlers";
-    } else if(role == 3) {
-        rolePlayersList = team->allRounders;
-        count = team->allRoundersCount;
-        roleName = "All-rounders";
-    } else {
-        printf("Invalid role!\n");
-        return;
-    }
+    PlayersList *roleListHead = getRoleListHead(team, (PlayerRole)role);
+    int count = countListNodes(roleListHead);
+    const char *roleName = getRoleString((PlayerRole)role);
     
     if(count == 0){
         printf("No players of this role in the team!\n");
@@ -564,10 +522,10 @@ void displayTopKPlayers(ICCSystem *ICCAnalyzer){
     printf("\nTop %hu %s of Team %s:\n", K, roleName, team->teamName);
     printHeader();
     
-    // Array is already sorted, just print first K - O(K)
-    for(int i = 0; i < K; i++) {
-        PlayersList *player = rolePlayersList[i];
-        printPlayerData(player);
+    PlayersList *current = roleListHead;
+    for(int i = 0; i < K && current != NULL; i++) {
+        printPlayerData(current);
+        current = current->next;
     }
     printf("\n");
 }
@@ -579,50 +537,7 @@ void displayAllPlayersByRole(ICCSystem *ICCAnalyzer){
         return;
     }
 
-    char *roleName;
-    if(role == 1) roleName = "Batsmen";
-    else if(role == 2) roleName = "Bowlers";
-    else if(role == 3) roleName = "All-rounders";
-    else {
-        printf("Invalid Role!\n");
-        return;
-    }
-
-    PlayersList **roleArr;
-    int roleCount;
-
-    HeapNode heap[MAX_TEAMS];
-    int heapSize = 0;
-
-    for (int i = 0; i < MAX_TEAMS; i++) {
-        TeamList *team = &ICCAnalyzer->teams[i];
-
-        if (team->totalPlayers == 0) continue;
-
-        if (role == 1) {
-            roleArr = team->batsmen;
-            roleCount = team->batsmenCount;
-        } else if (role == 2) {
-            roleArr = team->bowlers;
-            roleCount = team->bowlersCount;
-        } else {
-            roleArr = team->allRounders;
-            roleCount = team->allRoundersCount;
-        }
-
-        if (roleCount == 0) continue;
-
-        heap[heapSize].player = roleArr[0];
-        heap[heapSize].teamIndex = i;
-        heap[heapSize].playerIndex = 0;
-        heapifyUp(heap, heapSize);
-        heapSize++;
-    }
-
-    if (heapSize == 0) {
-        printf("\nNo %s found in any team.\n\n", roleName);
-        return;
-    }
+    const char *roleName = getRoleString((PlayerRole)role);
 
     printf("\n%s of all teams:\n", roleName);
     printf("==========================================================================================================\n");
@@ -630,56 +545,66 @@ void displayAllPlayersByRole(ICCSystem *ICCAnalyzer){
         "ID", "Name", "Team", "Role", "Runs", "Avg", "SR", "Wkts", "ER", "Perf.Index");
     printf("==========================================================================================================\n");
 
+    // Max-heap of player pointers
+    PlayersList *heap[MAX_TEAMS];
+    int heapTeamIndex[MAX_TEAMS];
+    PlayersList *teamPointers[MAX_TEAMS];
+    int heapSize = 0;
+    
+    // Initialize team pointers and build initial heap - O(t logt)
+    for (int i = 0; i < MAX_TEAMS; i++) {
+        PlayersList *roleHead = getRoleListHead(&ICCAnalyzer->teams[i], (PlayerRole)role);
+        teamPointers[i] = roleHead;
+        
+        if (roleHead != NULL) {
+            heap[heapSize] = roleHead;
+            heapTeamIndex[heapSize] = i;
+            heapifyUp(heap, heapTeamIndex, heapSize);
+            heapSize++;
+        }
+    }
+    
+    if (heapSize == 0) {
+        printf("\nNo %s found in any team.\n", roleName);
+        printf("==========================================================================================================\n\n");
+        return;
+    }
+    
+    // Extract max and replace with next from same team - O(N logt)
     while (heapSize > 0) {
-        HeapNode top = heap[0];
-        PlayersList *player = top.player;
-
+        PlayersList *player = heap[0];
+        int team = heapTeamIndex[0];
+        
         printf("%-5hu %-25s %-15s %-12s %-6hu %-5.1f %-5.1f %-5hu %-5.1f %-10.2f\n",
-               player->playerID, player->playerName, player->teamName, player->playerRole,
+               player->playerID, player->playerName, player->teamName, getRoleString(player->playerRole),
                player->totalRuns, player->battingAverage, player->strikeRate,
                player->wickets, player->economyRate, player->performanceIndex);
-
-        TeamList *team = &ICCAnalyzer->teams[top.teamIndex];
-
-        if (role == 1) {
-            roleArr = team->batsmen;
-            roleCount = team->batsmenCount;
-        } else if (role == 2) {
-            roleArr = team->bowlers;
-            roleCount = team->bowlersCount;
+        
+        teamPointers[team] = teamPointers[team]->next;
+        PlayersList *nextPlayer = teamPointers[team];
+        
+        if (nextPlayer != NULL) {
+            heap[0] = nextPlayer;
+            heapifyDown(heap, heapTeamIndex, heapSize, 0);
         } else {
-            roleArr = team->allRounders;
-            roleCount = team->allRoundersCount;
+            heap[0] = heap[heapSize - 1];
+            heapTeamIndex[0] = heapTeamIndex[heapSize - 1];
+            heapSize--;
+            if (heapSize > 0) {
+                heapifyDown(heap, heapTeamIndex, heapSize, 0);
+            }
         }
-
-        int nextIndex = top.playerIndex + 1;
-
-        if (nextIndex < roleCount) {
-            heap[0].player = roleArr[nextIndex];
-            heap[0].playerIndex = nextIndex;
-        }
-        else {
-            heap[0] = heap[--heapSize];
-        }
-
-        heapifyDown(heap, heapSize, 0);
     }
+    
     printf("==========================================================================================================\n\n");
 }
 
 void cleanupMemory(ICCSystem *ICCAnalyzer){
     for (int i = 0; i < MAX_TEAMS; i++) {
         TeamList *team = &ICCAnalyzer->teams[i];
-        if (team->batsmen) free(team->batsmen);
-        if (team->bowlers) free(team->bowlers);
-        if (team->allRounders) free(team->allRounders);
-    }
-    
-    PlayersList *current = ICCAnalyzer->players;
-    while (current != NULL) {
-        PlayersList *next = current->next;
-        free(current);
-        current = next;
+        freePlayersList(team->batsmenHead);
+        freePlayersList(team->bowlersHead);
+        freePlayersList(team->allRoundersHead);
     }
 }
 
@@ -731,11 +656,9 @@ void displayMenu(ICCSystem *ICCAnalyzer){
 
 int main(){
     ICCSystem ICCAnalyzer;
-    ICCAnalyzer.players = NULL;
     
     initializeTeamsData(&ICCAnalyzer);
     initializePlayersData(&ICCAnalyzer);
-    calculateAverageBattingSR(&ICCAnalyzer);
     
     displayMenu(&ICCAnalyzer);
     cleanupMemory(&ICCAnalyzer);
