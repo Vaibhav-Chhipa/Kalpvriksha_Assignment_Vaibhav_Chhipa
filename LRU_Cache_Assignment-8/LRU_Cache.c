@@ -82,6 +82,7 @@ LRUCache *createCache(int capacity){
     cache -> hashMap = (HashNode **)calloc(cache->hashMapSize, sizeof(HashNode *));
     if(cache -> hashMap == NULL){
         printf("Memory Allocation Failed.\n");
+        free(cache);
         return NULL;
     }
     return cache;
@@ -193,15 +194,12 @@ void put(LRUCache *cache, int key, char *value){
         exisitingNode -> value = (char *)malloc(strlen(value) + 1);
         strcpy(exisitingNode -> value, value);
         moveToFront(cache, exisitingNode);
-        printf("Updated key %d with value: %s\n", key, value);
     } else {
         Node *newNode = createNode(key, value);
         
         if(cache -> size >= cache -> capacity){
             Node *LRU = cache -> tail;
             
-            printf("Cache is Full. Evicting LRU key: %d Value: %s\n", LRU -> key, LRU -> value);
-
             hashMapDelete(cache, LRU->key);
             removeNode(cache , LRU);
             free(LRU -> value);
@@ -213,7 +211,6 @@ void put(LRUCache *cache, int key, char *value){
         hashMapInsert(cache, key, newNode);
         cache -> size++;
         
-        printf("Inserted %d : %s\n", key, value);
     }
 }
 
@@ -254,7 +251,6 @@ void freeCache(LRUCache *cache){
     }
     free(cache -> hashMap);
     free(cache);
-    printf("Freeing all Memory....\n");
 }
 
 void executeCommand(LRUCache **cache, char *buffer) {
