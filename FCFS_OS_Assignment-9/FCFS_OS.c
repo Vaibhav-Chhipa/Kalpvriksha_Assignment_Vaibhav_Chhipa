@@ -4,6 +4,7 @@
 #include <unistd.h>
 
 #define MAX_PROCESSES 1000
+#define HASH_TABLE_SIZE 101
 #define MAX_NAME 50
 #define MAX_LINE 200
 
@@ -19,7 +20,7 @@ typedef struct PCB
 {
     int pid;
     char *name;
-    int burst_time;
+    unsigned int burst_time;
     int io_start_time;
     int io_duration;
     int remaining_burst;
@@ -60,7 +61,7 @@ int hashFunction(int pid)
     {
         pid = -pid;
     }
-    return pid % MAX_PROCESSES;
+    return pid % HASH_TABLE_SIZE;
 }
 
 PCB *getPCB(PCB *hashmap[], int pid)
@@ -99,7 +100,7 @@ int insertPCB(PCB *hashmap[], PCB *pcb)
 
 void freePCBHashmap(PCB *hashmap[])
 {
-    for (int i = 0; i < MAX_PROCESSES; i++)
+    for (int i = 0; i < HASH_TABLE_SIZE; i++)
     {
         PCB *current = hashmap[i];
         while (current != NULL)
@@ -326,7 +327,7 @@ void removePCBFromHashmap(PCB *hashmap[], int pid)
     }
 }
 
-int initializePCB(PCB *hashmap[], Queue *readyQueue, int pid, char *name, int burst, int io_Start, int io_Duration)
+int initializePCB(PCB *hashmap[], Queue *readyQueue, int pid, char *name, unsigned int burst, int io_Start, int io_Duration)
 {
     PCB *pcb = (PCB *)malloc(sizeof(PCB));
     if (pcb == NULL)
@@ -523,13 +524,13 @@ void displayResults(Queue *terminatedQueue, PCB *hashmap[])
         {
             char status[30];
             sprintf(status, "KILLED at %d", pcb->completion_time);
-            printf("%-8d %-15s %-8d %-8d %-18s %-12s %-12s\n",
+            printf("%-8d %-15s %-8u %-8d %-18s %-12s %-12s\n",
                    pcb->pid, pcb->name, pcb->burst_time, pcb->io_duration,
                    status, "-", "-");
         }
         else
         {
-            printf("%-8d %-15s %-8d %-8d %-18s %-12d %-12d\n",
+            printf("%-8d %-15s %-8u %-8d %-18s %-12d %-12d\n",
                    pcb->pid, pcb->name, pcb->burst_time, pcb->io_duration,
                    "OK", pcb->turnaround_time, pcb->waiting_time);
         }
@@ -577,11 +578,11 @@ int readInput(PCB *hashmap[], Queue *readyQueue, KillEvent **killHead)
         }
         else
         {
-            char name[MAX_NAME];
+            char name[MAX_NAME+1];
             int pid, burst;
-            char io_start[10], io_duration[10];
+            char io_start[11], io_duration[11];
 
-            int count = sscanf(line, "%s %d %d %s %s", name, &pid, &burst, io_start, io_duration);
+            int count = sscanf(line, "%50s %d %u %10s %10s", name, &pid, &burst, io_start, io_duration);
 
             if (count < 3)
             {
