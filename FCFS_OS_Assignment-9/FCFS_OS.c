@@ -18,26 +18,26 @@ typedef enum
 
 typedef struct PCB
 {
-    int pid;
+    unsigned int pid;
     char *name;
     unsigned int burst_time;
-    int io_start_time;
-    int io_duration;
-    int remaining_burst;
-    int remaining_io;
-    int execution_time;
-    int waiting_time;
-    int turnaround_time;
-    int completion_time;
+    unsigned int io_start_time;
+    unsigned int io_duration;
+    unsigned int remaining_burst;
+    unsigned int remaining_io;
+    unsigned int execution_time;
+    unsigned int waiting_time;
+    unsigned int turnaround_time;
+    unsigned int completion_time;
     State state;
-    int killed;
-    int io_just_started;
+    unsigned int killed;
+    unsigned int io_just_started;
     struct PCB *next_in_hash;
 } PCB;
 
 typedef struct Node
 {
-    int pid;
+    unsigned int pid;
     struct Node *next;
 } Node;
 
@@ -50,17 +50,13 @@ typedef struct Queue
 
 typedef struct KillEvent
 {
-    int pid;
-    int kill_time;
+    unsigned int pid;
+    unsigned int kill_time;
     struct KillEvent *next;
 } KillEvent;
 
-int hashFunction(int pid)
+unsigned int hashFunction(unsigned int pid)
 {
-    if (pid < 0)
-    {
-        pid = -pid;
-    }
     return pid % HASH_TABLE_SIZE;
 }
 
@@ -87,7 +83,7 @@ int insertPCB(PCB *hashmap[], PCB *pcb)
         return 0;
     if (getPCB(hashmap, pcb->pid) != NULL)
     {
-        printf("Error: PID %d already exists!\n", pcb->pid);
+        printf("Error: PID %u already exists!\n", pcb->pid);
         return 0;
     }
 
@@ -168,7 +164,7 @@ Queue *createQueue()
     return q;
 }
 
-Node *createNode(int pid)
+Node *createNode(unsigned int pid)
 {
     Node *node = (Node *)malloc(sizeof(Node));
     if (node == NULL)
@@ -181,7 +177,7 @@ Node *createNode(int pid)
     return node;
 }
 
-int enqueue(Queue *q, int pid)
+int enqueue(Queue *q, unsigned int pid)
 {
     Node *node = createNode(pid);
     if (node == NULL)
@@ -219,12 +215,12 @@ int isQueueEmpty(Queue *q)
     return q == NULL || q->front == NULL;
 }
 
-int getValidInteger()
+unsigned int getValidInteger()
 {
-    int num;
+    unsigned int num;
     while (1)
     {
-        if (scanf("%d", &num) != 1)
+        if (scanf("%u", &num) != 1)
         {
             printf("Invalid input, enter again: ");
             while (getchar() != '\n')
@@ -267,7 +263,7 @@ KillEvent *createKillEvent(int pid, int time)
     return event;
 }
 
-int addKillEvent(KillEvent **head, int pid, int time)
+int addKillEvent(KillEvent **head, unsigned int pid, unsigned int time)
 {
     KillEvent *event = createKillEvent(pid, time);
     if (event == NULL)
@@ -289,7 +285,7 @@ int addKillEvent(KillEvent **head, int pid, int time)
     return 1;
 }
 
-void processKillEvents(KillEvent **head, PCB *hashmap[], int clock)
+void processKillEvents(KillEvent **head, PCB *hashmap[], unsigned int clock)
 {
     while (*head != NULL && (*head)->kill_time == clock)
     {
@@ -307,9 +303,9 @@ void processKillEvents(KillEvent **head, PCB *hashmap[], int clock)
     }
 }
 
-void removePCBFromHashmap(PCB *hashmap[], int pid)
+void removePCBFromHashmap(PCB *hashmap[], unsigned int pid)
 {
-    int index = hashFunction(pid);
+    unsigned int index = hashFunction(pid);
     PCB *curr = hashmap[index], *prev = NULL;
 
     while (curr != NULL && curr->pid != pid)
@@ -327,7 +323,7 @@ void removePCBFromHashmap(PCB *hashmap[], int pid)
     }
 }
 
-int initializePCB(PCB *hashmap[], Queue *readyQueue, int pid, char *name, unsigned int burst, int io_Start, int io_Duration)
+int initializePCB(PCB *hashmap[], Queue *readyQueue, unsigned int pid, char *name, unsigned int burst, unsigned int io_Start, unsigned int io_Duration)
 {
     PCB *pcb = (PCB *)malloc(sizeof(PCB));
     if (pcb == NULL)
@@ -431,7 +427,7 @@ void updateWaitingProcesses(Queue *waitingQueue, Queue *readyQueue, PCB *hashmap
 
 void startScheduler(PCB *hashmap[], Queue *readyQueue, Queue *waitingQueue, Queue *terminatedQueue, KillEvent **killHead)
 {
-    int clock = 0;
+    unsigned int clock = 0;
     int running_pid = -1;
 
     while (!isQueueEmpty(readyQueue) || !isQueueEmpty(waitingQueue) || running_pid != -1)
@@ -523,14 +519,14 @@ void displayResults(Queue *terminatedQueue, PCB *hashmap[])
         if (pcb->killed)
         {
             char status[30];
-            sprintf(status, "KILLED at %d", pcb->completion_time);
-            printf("%-8d %-15s %-8u %-8d %-18s %-12s %-12s\n",
+            sprintf(status, "KILLED at %u", pcb->completion_time);
+            printf("%-8u %-15s %-8u %-8u %-18s %-12s %-12s\n",
                    pcb->pid, pcb->name, pcb->burst_time, pcb->io_duration,
                    status, "-", "-");
         }
         else
         {
-            printf("%-8d %-15s %-8u %-8d %-18s %-12d %-12d\n",
+            printf("%-8u %-15s %-8u %-8u %-18s %-12u %-12u\n",
                    pcb->pid, pcb->name, pcb->burst_time, pcb->io_duration,
                    "OK", pcb->turnaround_time, pcb->waiting_time);
         }
@@ -544,9 +540,9 @@ int readInput(PCB *hashmap[], Queue *readyQueue, KillEvent **killHead)
     printf("Enter 'KILL <pid> <time>' for kill events\n");
     printf("Enter number of lines: ");
 
-    int number = getValidInteger();
+    unsigned int number = getValidInteger();
     printf("\n");
-    int ch;
+    unsigned int ch;
     while ((ch = getchar()) != '\n' && ch != EOF);
     char line[MAX_LINE];
 
@@ -555,7 +551,7 @@ int readInput(PCB *hashmap[], Queue *readyQueue, KillEvent **killHead)
         fgets(line, MAX_LINE, stdin);
 
         char command[10];
-        if (sscanf(line, "%s", command) != 1)
+        if (sscanf(line, "%9s", command) != 1)
         {
             printf("Invalid input format!\n");
             return 0;
@@ -563,8 +559,8 @@ int readInput(PCB *hashmap[], Queue *readyQueue, KillEvent **killHead)
 
         if (strcmp(command, "KILL") == 0)
         {
-            int pid, time;
-            if (sscanf(line, "KILL %d %d", &pid, &time) != 2)
+            unsigned int pid, time;
+            if (sscanf(line, "KILL %u %u", &pid, &time) != 2)
             {
                 printf("Invalid KILL format! Use: KILL <pid> <time>\n");
                 return 0;
@@ -579,10 +575,10 @@ int readInput(PCB *hashmap[], Queue *readyQueue, KillEvent **killHead)
         else
         {
             char name[MAX_NAME+1];
-            int pid, burst;
+            unsigned int pid, burst;
             char io_start[11], io_duration[11];
 
-            int count = sscanf(line, "%50s %d %u %10s %10s", name, &pid, &burst, io_start, io_duration);
+            unsigned int count = sscanf(line, "%50s %u %u %10s %10s", name, &pid, &burst, io_start, io_duration);
 
             if (count < 3)
             {
@@ -590,7 +586,7 @@ int readInput(PCB *hashmap[], Queue *readyQueue, KillEvent **killHead)
                 return 0;
             }
 
-            int io_Start = 0, io_Duration = 0;
+            unsigned int io_Start = 0, io_Duration = 0;
 
             if (count == 5)
             {
@@ -603,7 +599,7 @@ int readInput(PCB *hashmap[], Queue *readyQueue, KillEvent **killHead)
 
             if (!initializePCB(hashmap, readyQueue, pid, name, burst, io_Start, io_Duration))
             {
-                printf("Failed to initialize process %d. Memory allocation failed.\n", pid);
+                printf("Failed to initialize process %u. Memory allocation failed.\n", pid);
                 return 0;
             }
         }
