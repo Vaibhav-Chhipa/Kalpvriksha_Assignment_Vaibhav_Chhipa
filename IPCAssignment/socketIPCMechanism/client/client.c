@@ -85,41 +85,46 @@ bool processUserInput(int clientSocket)
 {
     ATMTransaction transaction = {0};
     
-    displayMenu();
-    
-    unsigned int choice = getUnsignedInput("Enter your choice: ");
-    transaction.operation = mapChoiceToCommands(choice);
-    
-    if (transaction.operation == INVALID)
+     while (1)
     {
-        printf("\nInvalid choice! Please select 1-4.\n");
-        return true;
-    }
-    
-    if (transaction.operation == WITHDRAW || transaction.operation == DEPOSIT)
-    {
-        transaction.amount = getUnsignedInput("Enter amount: ");
-    }
-    else
-    {
-        transaction.amount = 0;
+        displayMenu();
+
+        unsigned int choice = getUnsignedInput("Enter your choice: ");
+        transaction.operation = mapChoiceToCommands(choice);
+
+        if (transaction.operation == INVALID)
+        {
+            printf("\nInvalid choice! Please select 1-4.\n");
+            continue;   // 🔁 stay here, DO NOT return
+        }
+
+        if (transaction.operation == WITHDRAW || transaction.operation == DEPOSIT)
+        {
+            transaction.amount = getUnsignedInput("Enter amount: ");
+        }
+        else
+        {
+            transaction.amount = 0;
+        }
+
+        break;  
     }
     
     // Send transaction to server
     if (send(clientSocket, &transaction, sizeof(transaction), 0) <= 0)
     {
         perror("send");
-        return false;
+        return 0;
     }
     
     // If exit, return false to terminate
     if (transaction.operation == EXIT)
     {
         printf("\nThank you for using our ATM service!\n");
-        return false;
+        return 0;
     }
     
-    return true;
+    return 1;
 }
 
 
@@ -162,10 +167,17 @@ int main()
     
     while (1)
     {
-        if (!processUserInput(clientSocket))
+        int status = processUserInput(clientSocket);
+
+        if (status == 0)
         {
             close(clientSocket);
             return 0;
+        }
+
+        if (status == -1)
+        {
+            continue;   
         }
         
         char response[256] = {0};
@@ -184,7 +196,6 @@ int main()
             break;
         }
         
-        response[bytesRead] = '\0';
         printf("\nServer Response: %s\n", response);
     }
     

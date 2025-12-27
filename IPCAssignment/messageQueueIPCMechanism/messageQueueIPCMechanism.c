@@ -97,9 +97,6 @@ void parentProcess(int msgid, int *arr, int size)
         return;
     }
 
-    /* wait for child process to complete sorting */
-    wait(NULL);
-
     /* Receive sorted data from child (msgType=2) */
     if (msgrcv(msgid, &msg, sizeof(msg) - sizeof(long), 2, 0) == -1)
     {
@@ -122,6 +119,12 @@ int main()
     printf("Enter size of array: ");
     int size = getIntInput();
 
+    if (size == 0)
+    {
+        printf("Array size must be greater than 0\n");
+        return 1;
+    }
+
     if (size > MAX_SIZE)
     {
         printf("Max allowed size is %d\n", MAX_SIZE);
@@ -139,7 +142,7 @@ int main()
     for (int i = 0; i < size; i++)
     {
         printf("Enter element %d: ", i + 1);
-        *(arr + i) = getIntInput();
+       arr[i] = getIntInput();
     }
 
     printf("Parent Process (PID %d): Display original array\n", getpid());
@@ -184,6 +187,14 @@ int main()
     {
         /* Parent process: send, wait, receive, and display */
         parentProcess(msgid, arr, size);
+
+        int status;
+        wait(&status);
+
+        if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
+        {
+            fprintf(stderr, "Child process exited with error\n");
+        }
     }
 
     free(arr);

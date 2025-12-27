@@ -89,23 +89,39 @@ void childProcess(int *arr, int size)
 {
     printf("\nChild Process (PID %d): Sorting data\n", getpid());
 
-    if (readFromFile(arr, size))
+    if (!readFromFile(arr, size))
     {
-        bubbleSort(arr, size);
-        writeInFile(arr, size);
+        free(arr);
+        exit(1);  
+    }
+    
+    bubbleSort(arr, size);
+    
+    if (!writeInFile(arr, size))
+    {
+        free(arr);
+        exit(1);  
     }
 
     free(arr);
 }
 
-void parentProcess(int *arr, int size)
+void parentProcess(int *arr, int size, int child_status)
 {
-    wait(NULL);
-
     printf("\nParent Process (PID %d): Display sorted array\n", getpid());
+
+    if (WIFEXITED(child_status) && WEXITSTATUS(child_status) != 0)
+    {
+        printf("Child process failed. Cannot read sorted data.\n");
+        remove(FILENAME);
+        free(arr);
+        return;
+    }
 
     if (readFromFile(arr, size))
         printArray(arr, size);
+    else
+        printf("Failed to read sorted data from file\n");
 
     remove(FILENAME);
     free(arr);
@@ -115,6 +131,12 @@ int main()
 {
     printf("Enter size of array: ");
     int size = getIntInput();
+
+    if (size == 0)
+    {
+        printf("Array size must be greater than 0\n");
+        return 1;
+    }
 
     int *arr = malloc(size * sizeof(int));
     if (!arr)
@@ -141,6 +163,7 @@ int main()
     if (pid < 0)
     {
         printf("Fork failed\n");
+        remove(FILENAME);
         free(arr);
         return 1;
     }
@@ -151,7 +174,9 @@ int main()
     }
     else
     {
-        parentProcess(arr, size);
+        int status;
+        wait(&status);
+        parentProcess(arr, size, status);
     }
 
     return 0;

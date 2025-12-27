@@ -53,14 +53,14 @@ void childProcess(int readPipe, int writePipe)
     int arr[MAX_SIZE];
 
     /* Read size */
-    if (read(readPipe, &size, sizeof(int)) <= 0)
+    if (read(readPipe, &size, sizeof(int)) != sizeof(int))
     {
         perror("Child read size failed");
         return;
     }
 
     /* Read array */
-    if (read(readPipe, arr, size * sizeof(int)) <= 0)
+    if (read(readPipe, arr, size * sizeof(int)) != size * sizeof(int))
     {
         perror("Child read array failed");
         return;
@@ -70,7 +70,7 @@ void childProcess(int readPipe, int writePipe)
 
     bubbleSort(arr, size);
 
-    if (write(writePipe, arr, size * sizeof(int)) <= 0)
+    if (write(writePipe, arr, size * sizeof(int)) != size * sizeof(int))
     {
         perror("Child write failed");
     }
@@ -79,24 +79,30 @@ void childProcess(int readPipe, int writePipe)
 void parentProcess(int writePipe, int readPipe, int *arr, int size)
 {
     /* Send size */
-    if (write(writePipe, &size, sizeof(int)) <= 0)
+    if (write(writePipe, &size, sizeof(int)) != sizeof(int))
     {
         perror("Parent write size failed");
         return;
     }
 
     /* Send array */
-    if (write(writePipe, arr, size * sizeof(int)) <= 0)
+    if (write(writePipe, arr, size * sizeof(int)) != size * sizeof(int))
     {
         perror("Parent write array failed");
         return;
     }
 
     /* Wait for child to sort */
-    wait(NULL);
+    int status;
+    wait(&status);
+    if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
+    {
+        printf("Child process failed\n");
+        return;
+    }
 
     /* Read sorted array */
-    if (read(readPipe, arr, size * sizeof(int)) <= 0)
+    if (read(readPipe, arr, size * sizeof(int)) != size * sizeof(int))
     {
         perror("Parent read failed");
         return;
@@ -109,9 +115,9 @@ void parentProcess(int writePipe, int readPipe, int *arr, int size)
 int main()
 {
     printf("Enter size of array: ");
-    int size = getIntInput();
+    unsigned int size = getIntInput();
 
-    if (size <= 0 || size > MAX_SIZE)
+    if (size > MAX_SIZE)
     {
         printf("Invalid array size\n");
         return 1;
@@ -148,6 +154,10 @@ int main()
     if (pid < 0)
     {
         perror("Fork failed");
+        close(pipe1[0]);
+        close(pipe1[1]);
+        close(pipe2[0]);
+        close(pipe2[1]);
         free(arr);
         return 1;
     }
